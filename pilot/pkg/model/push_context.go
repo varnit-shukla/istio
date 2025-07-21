@@ -1136,6 +1136,16 @@ func (ps *PushContext) DelegateVirtualServices(vses []config.Config) []ConfigHas
 // Callers can check if the sidecarScope is from user generated object or not
 // by checking the sidecarScope.Config field, that contains the user provided config
 func (ps *PushContext) getSidecarScope(proxy *Proxy, workloadLabels labels.Instance) *SidecarScope {
+	sidecar := ps.doGetSidecarScope(proxy, workloadLabels)
+	// we need to make sure sidecar scope is initiaized before returning
+	if sidecar != nil && features.EnableLazySidecarEvaluation {
+		sidecar.initFunc()
+	}
+
+	return sidecar
+}
+
+func (ps *PushContext) doGetSidecarScope(proxy *Proxy, workloadLabels labels.Instance) *SidecarScope {
 	// TODO: logic to merge multiple sidecar resources
 	// Currently we assume that there will be only one sidecar config for a namespace.
 	sidecars, hasSidecar := ps.sidecarIndex.sidecarsByNamespace[proxy.ConfigNamespace]
