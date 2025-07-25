@@ -296,6 +296,7 @@ func DefaultSidecarScopeForNamespace(ps *PushContext, configNamespace string) *S
 	defaultEgressListener.virtualServices = ps.VirtualServicesForGateway(configNamespace, constants.IstioMeshGateway)
 	defaultEgressListener.mostSpecificWildcardVsIndex = computeWildcardHostVirtualServiceIndex(
 		defaultEgressListener.virtualServices, services)
+
 	out := &SidecarScope{
 		Name:                    defaultSidecar,
 		Namespace:               configNamespace,
@@ -306,23 +307,24 @@ func DefaultSidecarScopeForNamespace(ps *PushContext, configNamespace string) *S
 		configDependencies:      make(sets.Set[ConfigHash]),
 		Version:                 ps.PushVersion,
 	}
+
 	servicesAdded := make(map[host.Name]sidecarServiceIndex)
 	for _, s := range services {
 		out.appendSidecarServices(servicesAdded, s)
 	}
 	defaultEgressListener.services = out.services
+
 	// add dependencies on delegate virtual services
 	delegates := ps.DelegateVirtualServices(defaultEgressListener.virtualServices)
 	for _, delegate := range delegates {
 		out.AddConfigDependencies(delegate)
 	}
 	for _, vs := range defaultEgressListener.virtualServices {
-		out.AddConfigDependencies(ConfigKey{
-			Kind:      kind.VirtualService,
-			Namespace: vs.Namespace,
-			Name:      vs.Name,
-		}.HashCode())
+		for _, cfg := range VirtualServiceDependencies(vs) {
+			out.AddConfigDependencies(cfg.HashCode())
+		}
 	}
+
 	// Now that we have all the services that sidecars using this scope (in
 	// this config namespace) will see, identify all the destinationRules
 	// that these services need
@@ -346,13 +348,12 @@ func DefaultSidecarScopeForNamespace(ps *PushContext, configNamespace string) *S
 			Namespace: s.Attributes.Namespace,
 		}.HashCode())
 	}
+
 	if ps.Mesh.OutboundTrafficPolicy != nil {
 		out.OutboundTrafficPolicy = &networking.OutboundTrafficPolicy{
 			Mode: networking.OutboundTrafficPolicy_Mode(ps.Mesh.OutboundTrafficPolicy.Mode),
 		}
 	}
-
-	out.initFunc = func() {}
 
 	return out
 }
