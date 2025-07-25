@@ -355,6 +355,8 @@ func DefaultSidecarScopeForNamespace(ps *PushContext, configNamespace string) *S
 		}
 	}
 
+	out.initFunc = func() {}
+
 	return out
 }
 
